@@ -6,6 +6,9 @@ import depthai as dai
 import numpy as np
 import time
 import argparse
+import sys
+sys.path.append('../../../')
+from DodgeTheWrench.Avoidance import DodgeWrench
 
 labelMap = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow",
             "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
@@ -55,7 +58,7 @@ spatialDetectionNetwork.setConfidenceThreshold(0.5)
 spatialDetectionNetwork.input.setBlocking(False)
 spatialDetectionNetwork.setBoundingBoxScaleFactor(0.5)
 spatialDetectionNetwork.setDepthLowerThreshold(100)
-spatialDetectionNetwork.setDepthUpperThreshold(5000)
+spatialDetectionNetwork.setDepthUpperThreshold(10000)
 
 objectTracker.setDetectionLabelsToTrack([15])  # track only person
 # possible tracking types: ZERO_TERM_COLOR_HISTOGRAM, ZERO_TERM_IMAGELESS, SHORT_TERM_IMAGELESS, SHORT_TERM_KCF
@@ -84,6 +87,11 @@ spatialDetectionNetwork.passthrough.link(objectTracker.inputDetectionFrame)
 spatialDetectionNetwork.out.link(objectTracker.inputDetections)
 stereo.depth.link(spatialDetectionNetwork.inputDepth)
 
+#Initializing position average set
+xAverage = []
+yAverage = []
+zAverage = []
+sampleCounter = 0
 # Connect to device and start pipeline
 with dai.Device(pipeline) as device:
 
@@ -114,7 +122,47 @@ with dai.Device(pipeline) as device:
             y1 = int(roi.topLeft().y)
             x2 = int(roi.bottomRight().x)
             y2 = int(roi.bottomRight().y)
+            
+            #storing position data
+            if (t.spatialCoordinates.x == 0.0) & (t.spatialCoordinates.y == 0.0) & (t.spatialCoordinates.z == 0.0):
+                continue
+            xAverage.append(t.spatialCoordinates.x)
+            yAverage.append(t.spatialCoordinates.y)
+            zAverage.append(t.spatialCoordinates.z)
+            
+            #averaging position data over defined interval
+            if len(xAverage) >= 5:
+                
+                    
+                xPositionAverage = sum(xAverage)/len(xAverage)
+                
+                yPositionAverage = sum(yAverage)/len(yAverage)
+                
+                zPositionAverage = sum(zAverage)/len(zAverage)
+                
+                #determining if this is beginning of sample or end of sample
+                sampleCounter += 1
+                
+                if sampleCounter == 1:
+                    position1 = [xPositionAverage, yPositionAverage, zPositionAverage]
+                    
+                    xAverage = []
+                    yAverage = []
+                    zAverage = []
+                    
+                elif sampleCounter == 2:
+                    position2 = [xPositionAverage, yPositionAverage, zPositionAverage]
+            
+                    print(position1, position2)
+                    
+                    sampleCounter = 0
+                    xAverage = []
+                    yAverage = []
+                    zAverage = []
 
+                    test = DodgeWrench(position1,position2,500)
+                    print(test)
+                    
             try:
                 label = labelMap[t.label]
             except:
@@ -135,3 +183,4 @@ with dai.Device(pipeline) as device:
 
         if cv2.waitKey(1) == ord('q'):
             break
+
