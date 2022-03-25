@@ -9,6 +9,7 @@ import argparse
 import sys
 sys.path.append('../../../')
 from DodgeTheWrench.Avoidance import DodgeWrench
+from DodgeTheWrench.MoveMotor import MoveMotor
 
 labelMap = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow",
             "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
@@ -87,11 +88,17 @@ spatialDetectionNetwork.passthrough.link(objectTracker.inputDetectionFrame)
 spatialDetectionNetwork.out.link(objectTracker.inputDetections)
 stereo.depth.link(spatialDetectionNetwork.inputDepth)
 
+# Initialize MoveMotor, home linear actuator
+move = MoveMotor()
+move.home()
+
 #Initializing position average set
 xAverage = []
 yAverage = []
 zAverage = []
 sampleCounter = 0
+trackMove = []
+allSame = False 
 # Connect to device and start pipeline
 with dai.Device(pipeline) as device:
 
@@ -124,14 +131,15 @@ with dai.Device(pipeline) as device:
             y2 = int(roi.bottomRight().y)
             
             #storing position data
-            if (t.spatialCoordinates.x == 0.0) & (t.spatialCoordinates.y == 0.0) & (t.spatialCoordinates.z == 0.0):
+            # Make sure a position is actually gotten
+            if (t.spatialCoordinates.x == 0.0) and (t.spatialCoordinates.y == 0.0) and (t.spatialCoordinates.z == 0.0):
                 continue
             xAverage.append(t.spatialCoordinates.x)
             yAverage.append(t.spatialCoordinates.y)
             zAverage.append(t.spatialCoordinates.z)
             
             #averaging position data over defined interval
-            if len(xAverage) >= 5:
+            if len(xAverage) >= 3:
                 
                     
                 xPositionAverage = sum(xAverage)/len(xAverage)
@@ -149,8 +157,14 @@ with dai.Device(pipeline) as device:
                     xAverage = []
                     yAverage = []
                     zAverage = []
+                
+                elif sampleCounter > 1 and sampleCounter < 8:
                     
-                elif sampleCounter == 2:
+                    xAverage = []
+                    yAverage = []
+                    zAverage = []
+                    
+                elif sampleCounter == 8:
                     position2 = [xPositionAverage, yPositionAverage, zPositionAverage]
             
                     print(position1, position2)
@@ -159,9 +173,44 @@ with dai.Device(pipeline) as device:
                     xAverage = []
                     yAverage = []
                     zAverage = []
+            
 
-                    test = DodgeWrench(position1,position2,500)
-                    print(test)
+                    # Run avoidance script to determine direction and distance for avoidance
+                    dirMove,dirDist = DodgeWrench(position1,position2,300)
+                    print("Direction: " + str(dirMove) + "\nDistance: " + str(dirDist))
+                    
+                    trackMove.append(dirMove)
+                    print(str(trackMove))
+                    while len(trackMove) >= 1:
+                        allSame = True
+                        for i in trackMove:
+                            if i != trackMove[0]:
+                                allSame = False
+                                print("Not same as first value")
+                            else:
+                                print("Same as first value")
+                        trackMove.pop(0)
+                    # Move motor the appropriate direction, then move back to center.
+                    if (dirMove == "right") and allSame:
+                        print("Avoidance is a go!" + "\nDirection: " + str(dirMove))
+                        move.moveMotor("right",1000,250)
+                        time.sleep(1)
+                        move.moveMotor("left",1000,250)
+                        time.sleep(1)
+
+                    elif (dirMove == "left") and allSame:
+                        print("Avoidance is a go!" + "\nDirection: " + str(dirMove))
+                        move.moveMotor("left",1000,250)
+                        time.sleep(1)
+                        move.moveMotor("right",1000,250)
+                        time.sleep(1)
+                        
+                    else:
+                        print("do not avoid")
+
+
+
+
                     
             try:
                 label = labelMap[t.label]
