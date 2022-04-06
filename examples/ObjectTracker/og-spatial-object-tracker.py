@@ -6,11 +6,17 @@ import depthai as dai
 import numpy as np
 import time
 import argparse
+import sys
+sys.path.append('../../../')
+from DodgeTheWrench.Avoidance import DodgeWrench
+from DodgeTheWrench.MoveMotor import MoveMotor
 
-labelMap = ["background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow",
+labelMap = ["background", "Tennis Ball", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat", "chair", "cow",
             "diningtable", "dog", "horse", "motorbike", "person", "pottedplant", "sheep", "sofa", "train", "tvmonitor"]
 
-nnPathDefault = str((Path(__file__).parent / Path('../models/mobilenet-ssd_openvino_2021.4_5shave.blob')).resolve().absolute())
+#nnPathDefault = str((Path(__file__).parent / Path('../models/mobilenet-ssd_openvino_2021.4_5shave.blob')).resolve().absolute())
+# Importing CV model for tennis ball from this path
+nnPathDefault = str((Path(__file__).parent / Path('../models/custom_mobilenet/20000_frozen_inference_graph_openvino_2021.4_5shave.blob')).resolve().absolute())
 parser = argparse.ArgumentParser()
 parser.add_argument('nnPath', nargs='?', help="Path to mobilenet detection network blob", default=nnPathDefault)
 parser.add_argument('-ff', '--full_frame', action="store_true", help="Perform tracking on full RGB frame", default=False)
@@ -54,10 +60,10 @@ spatialDetectionNetwork.setBlobPath(args.nnPath)
 spatialDetectionNetwork.setConfidenceThreshold(0.5)
 spatialDetectionNetwork.input.setBlocking(False)
 spatialDetectionNetwork.setBoundingBoxScaleFactor(0.5)
-spatialDetectionNetwork.setDepthLowerThreshold(100)
-spatialDetectionNetwork.setDepthUpperThreshold(5000)
+spatialDetectionNetwork.setDepthLowerThreshold(1000)
+spatialDetectionNetwork.setDepthUpperThreshold(10000)
 
-objectTracker.setDetectionLabelsToTrack([15])  # track only person
+objectTracker.setDetectionLabelsToTrack([1])  # track only person
 # possible tracking types: ZERO_TERM_COLOR_HISTOGRAM, ZERO_TERM_IMAGELESS, SHORT_TERM_IMAGELESS, SHORT_TERM_KCF
 objectTracker.setTrackerType(dai.TrackerType.ZERO_TERM_COLOR_HISTOGRAM)
 # take the smallest ID when new object is tracked, possible options: SMALLEST_ID, UNIQUE_ID
@@ -94,7 +100,11 @@ with dai.Device(pipeline) as device:
     counter = 0
     fps = 0
     color = (255, 255, 255)
-
+    
+    # Initializing sample counter and position list
+    sampleCounter = 0
+    currentPosition = [0, 0, 0]
+    positionList = []
     while(True):
         imgFrame = preview.get()
         track = tracklets.get()
@@ -109,29 +119,62 @@ with dai.Device(pipeline) as device:
         frame = imgFrame.getCvFrame()
         trackletsData = track.tracklets
         for t in trackletsData:
-            roi = t.roi.denormalize(frame.shape[1], frame.shape[0])
-            x1 = int(roi.topLeft().x)
-            y1 = int(roi.topLeft().y)
-            x2 = int(roi.bottomRight().x)
-            y2 = int(roi.bottomRight().y)
+            if t.status.name == "TRACKED":
+                roi = t.roi.denormalize(frame.shape[1], frame.shape[0])
+                x1 = int(roi.topLeft().x)
+                y1 = int(roi.topLeft().y)
+                x2 = int(roi.bottomRight().x)
+                y2 = int(roi.bottomRight().y)
+                
+                # Updating position list as Oak-D tracks tennis ball
+                currentPosition = [t.spatialCoordinates.x, t.spatialCoordinates.y, t.spatialCoordinates.z] 
+                
+                # Continuing to next loop if no object is picked up
+                if currentPosition == [0.0, 0.0, 0.0]:
+                    continue
+                
+                # Increasing sample count for each tracked position
+                sampleCounter += 1
+                positionList.append(currentPosition)
+                
+                # Upon having six recorded positions, start recording an initial and final point for determining approximate velocity
+                while len(positionList) > 5:
+                    position1 = positionList[0]
+                    position2 = positionList[5]
+                    
+                    # Removing oldest position to renew initial and final points as ball travels
+                    positionList.pop(0)
+                    
+                # Running avoidance algorithm with two positions, third argument is tolerance for avoidance in mm
+                    dirMove, moveDist = DodgeWrench(position1, position2, 1000)
+                    if dirMove != "Stay":
+                        if dirMove == "Move Either Way":
+                                dirMove = "right"
+                        print('Move', moveDist, 'mm to the', dirMove)
+                    else:
+                        print(dirMove)
+                        
 
-            try:
-                label = labelMap[t.label]
-            except:
-                label = t.label
+                
+                    
+                
+                try:
+                    label = labelMap[t.label]
+                except:
+                    label = t.label
 
-            cv2.putText(frame, str(label), (x1 + 10, y1 + 20), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
-            cv2.putText(frame, f"ID: {[t.id]}", (x1 + 10, y1 + 35), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
-            cv2.putText(frame, t.status.name, (x1 + 10, y1 + 50), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
+                cv2.putText(frame, str(label), (x1 + 10, y1 + 20), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
+                cv2.putText(frame, f"ID: {[t.id]}", (x1 + 10, y1 + 35), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
+                cv2.putText(frame, t.status.name, (x1 + 10, y1 + 50), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
 
-            cv2.putText(frame, f"X: {int(t.spatialCoordinates.x)} mm", (x1 + 10, y1 + 65), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
-            cv2.putText(frame, f"Y: {int(t.spatialCoordinates.y)} mm", (x1 + 10, y1 + 80), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
-            cv2.putText(frame, f"Z: {int(t.spatialCoordinates.z)} mm", (x1 + 10, y1 + 95), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
+                cv2.putText(frame, f"X: {int(t.spatialCoordinates.x)} mm", (x1 + 10, y1 + 65), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
+                cv2.putText(frame, f"Y: {int(t.spatialCoordinates.y)} mm", (x1 + 10, y1 + 80), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
+                cv2.putText(frame, f"Z: {int(t.spatialCoordinates.z)} mm", (x1 + 10, y1 + 95), cv2.FONT_HERSHEY_TRIPLEX, 0.5, 255)
 
         cv2.putText(frame, "NN fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color)
 
         cv2.imshow("tracker", frame)
 
         if cv2.waitKey(1) == ord('q'):
-            break
+                break
