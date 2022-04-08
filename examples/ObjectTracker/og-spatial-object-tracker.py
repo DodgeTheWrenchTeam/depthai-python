@@ -16,7 +16,7 @@ labelMap = ["background", "Tennis Ball", "bicycle", "bird", "boat", "bottle", "b
 
 #nnPathDefault = str((Path(__file__).parent / Path('../models/mobilenet-ssd_openvino_2021.4_5shave.blob')).resolve().absolute())
 # Importing CV model for tennis ball from this path
-nnPathDefault = str((Path(__file__).parent / Path('../models/custom_mobilenet/20000_frozen_inference_graph_openvino_2021.4_5shave.blob')).resolve().absolute())
+nnPathDefault = str((Path(__file__).parent / Path('../models/custom_yolo/yolo_v4_tiny_openvino_2021.3_6shave.blob')).resolve().absolute())
 parser = argparse.ArgumentParser()
 parser.add_argument('nnPath', nargs='?', help="Path to mobilenet detection network blob", default=nnPathDefault)
 parser.add_argument('-ff', '--full_frame', action="store_true", help="Perform tracking on full RGB frame", default=False)
@@ -30,7 +30,7 @@ pipeline = dai.Pipeline()
 
 # Define sources and outputs
 camRgb = pipeline.create(dai.node.ColorCamera)
-spatialDetectionNetwork = pipeline.create(dai.node.MobileNetSpatialDetectionNetwork)
+spatialDetectionNetwork = pipeline.create(dai.node.YoloSpatialDetectionNetwork)
 monoLeft = pipeline.create(dai.node.MonoCamera)
 monoRight = pipeline.create(dai.node.MonoCamera)
 stereo = pipeline.create(dai.node.StereoDepth)
@@ -43,7 +43,7 @@ xoutRgb.setStreamName("preview")
 trackerOut.setStreamName("tracklets")
 
 # Properties
-camRgb.setPreviewSize(300, 300)
+camRgb.setPreviewSize(512, 320)
 camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
 camRgb.setInterleaved(False)
 camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
@@ -62,8 +62,13 @@ spatialDetectionNetwork.input.setBlocking(False)
 spatialDetectionNetwork.setBoundingBoxScaleFactor(0.5)
 spatialDetectionNetwork.setDepthLowerThreshold(1000)
 spatialDetectionNetwork.setDepthUpperThreshold(10000)
-
-objectTracker.setDetectionLabelsToTrack([1])  # track only person
+# Yolo specific parameters
+spatialDetectionNetwork.setNumClasses(1)
+spatialDetectionNetwork.setCoordinateSize(4)
+spatialDetectionNetwork.setAnchors(np.array([10,14, 23,27, 37,58, 81,82, 135,169, 344,319]))
+spatialDetectionNetwork.setAnchorMasks({ "side32": np.array([1,2,3]), "side16": np.array([3,4,5]) })
+spatialDetectionNetwork.setIouThreshold(0.5)
+#objectTracker.setDetectionLabelsToTrack([1])  # track only person
 # possible tracking types: ZERO_TERM_COLOR_HISTOGRAM, ZERO_TERM_IMAGELESS, SHORT_TERM_IMAGELESS, SHORT_TERM_KCF
 objectTracker.setTrackerType(dai.TrackerType.ZERO_TERM_COLOR_HISTOGRAM)
 # take the smallest ID when new object is tracked, possible options: SMALLEST_ID, UNIQUE_ID

@@ -14,7 +14,7 @@ import numpy as np
 import time
 
 # Get argument first
-nnPath = str((Path(__file__).parent / Path('../models/yolo-v4-tiny-tf_openvino_2021.4_6shave.blob')).resolve().absolute())
+nnPath = str((Path(__file__).parent / Path('../models/custom_yolo/yolo_v4_tiny_openvino_2021.3_6shave.blob')).resolve().absolute())
 if 1 < len(sys.argv):
     arg = sys.argv[1]
     if arg == "yolo3":
@@ -32,7 +32,7 @@ if not Path(nnPath).exists():
 
 # tiny yolo v4 label texts
 labelMap = [
-    "person",         "bicycle",    "car",           "motorbike",     "aeroplane",   "bus",           "train",
+    "Tennis Ball",         "bicycle",    "car",           "motorbike",     "aeroplane",   "bus",           "train",
     "truck",          "boat",       "traffic light", "fire hydrant",  "stop sign",   "parking meter", "bench",
     "bird",           "cat",        "dog",           "horse",         "sheep",       "cow",           "elephant",
     "bear",           "zebra",      "giraffe",       "backpack",      "umbrella",    "handbag",       "tie",
@@ -61,7 +61,7 @@ xoutRgb.setStreamName("rgb")
 nnOut.setStreamName("nn")
 
 # Properties
-camRgb.setPreviewSize(416, 416)
+camRgb.setPreviewSize(512, 320)
 camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
 camRgb.setInterleaved(False)
 camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
@@ -69,10 +69,10 @@ camRgb.setFps(40)
 
 # Network specific settings
 detectionNetwork.setConfidenceThreshold(0.5)
-detectionNetwork.setNumClasses(80)
+detectionNetwork.setNumClasses(1)
 detectionNetwork.setCoordinateSize(4)
 detectionNetwork.setAnchors(np.array([10, 14, 23, 27, 37, 58, 81, 82, 135, 169, 344, 319]))
-detectionNetwork.setAnchorMasks({"side26": np.array([1, 2, 3]), "side13": np.array([3, 4, 5])})
+detectionNetwork.setAnchorMasks({"side32": np.array([1, 2, 3]), "side16": np.array([3, 4, 5])})
 detectionNetwork.setIouThreshold(0.5)
 detectionNetwork.setBlobPath(nnPath)
 detectionNetwork.setNumInferenceThreads(2)
