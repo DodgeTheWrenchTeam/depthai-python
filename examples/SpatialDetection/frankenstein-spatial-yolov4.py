@@ -71,11 +71,13 @@ camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
 # This value was used during calibration
 camRgb.initialControl.setManualFocus(130)
 camRgb.setIspScale(2, 3)
+#camRgb.setFps(30)
 monoLeft.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
 monoLeft.setBoardSocket(dai.CameraBoardSocket.LEFT)
 monoRight.setResolution(dai.MonoCameraProperties.SensorResolution.THE_400_P)
 monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
-
+#monoLeft.setFps(30)
+#monoRight.setFps(30)
 # setting node configs
 stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
 
@@ -111,8 +113,8 @@ spatialDetectionNetwork.passthroughDepth.link(xoutDepth.input)
 
 # Initialize MoveMotor, home linear actuator
 move = MoveMotor()
-move.home()
-
+move.home(150)
+fpscount = 0
 # Connect to device and start pipeline
 with dai.Device(pipeline) as device:
 
@@ -188,41 +190,47 @@ with dai.Device(pipeline) as device:
             
             # Increasing sample count for each tracked position
             positionList.append(currentPosition)
-            if len(positionList) == 1:
-                start = time.time()
-            if len(positionList) == 101:
-                print(time.time() - start)
+#             if len(positionList) == 1:
+#                 start = time.time()
+#             if len(positionList) == 101:
+                #print(time.time() - start)
             # Upon having six recorded positions, start recording an initial and final point for determining approximate velocity
-            while len(positionList) > 2:
+            while len(positionList) > 1:
                 position1 = positionList[0]
-                position2 = positionList[2]
+                position2 = positionList[1]
  
                 # Removing oldest position to renew initial and final points as ball travels
-                positionList.pop(0)
+                positionList = []
                 
             # Running avoidance algorithm with two positions, third argument is tolerance for avoidance in mm
-                dirMove, moveDist = DodgeWrench(position1, position2, 300)
+                dirMove, moveDist = DodgeWrench(position1, position2, 300, 1000, 30, 5)
         
                 if dirMove != "Stay":
-                    print(position1, position2)
+                    #print(position1, position2)
                     if dirMove == "Move Either Way":
                             dirMove = "right"
-                    print('Move', moveDist, 'mm to the', dirMove)
-                else:
-                    print(dirMove)
+                    #print('Move', moveDist, 'mm to the', dirMove)
+                #else:
+                    #print(dirMove)
                 
                 # Moving the motor depending on the command result
+                if moveDist < 100:
+                    moveDist = 100
                 if (dirMove == "right"):
-                    move.moveMotor("right",700,200)
-                    time.sleep(1)
-                    move.moveMotor("left",700,200)
-                    time.sleep(0.5)
+                    #move.moveMotor("right",1000,200)
+                    move.accelerate("right",10,50,1000,moveDist)
+                    time.sleep(0.25)
+                    #move.moveMotor("left",1000,200)
+                    move.accelerate("left",10,50,1000,moveDist)
+                    time.sleep(0.25)
 
                 elif (dirMove == "left"):
-                    move.moveMotor("left",700,200)
-                    time.sleep(1)
-                    move.moveMotor("right",700,200)
-                    time.sleep(0.5)
+                    #move.moveMotor("left",1000,200)
+                    move.accelerate("left",10,50,1000,moveDist)
+                    time.sleep(0.25)
+                    #move.moveMotor("right",1000,200)
+                    move.accelerate("right",10,50,1000,moveDist)
+                    time.sleep(0.25)
             
             
             
@@ -239,9 +247,13 @@ with dai.Device(pipeline) as device:
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
 
         cv2.putText(frame, "NN fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color)
+        fpscount +=1
+        if fpscount == 30:
+            print(fps)
+            fpscount = 0
         #cv2.imshow("depth", depthFrameColor)
-        cv2.imshow("rgb", frame)
+        #cv2.imshow("rgb", frame)
 
-        if cv2.waitKey(1) == ord('q'):
-            break
+        #if cv2.waitKey(1) == ord('q'):
+            #break
 
