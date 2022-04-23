@@ -19,7 +19,7 @@ Spatial Tiny-yolo example
 '''
 
 # Get argument first
-nnBlobPath = str((Path(__file__).parent / Path('../models/custom_yolo/yolo_v4_tiny_openvino_2021.3_6shave.blob')).resolve().absolute())
+nnBlobPath = str((Path(__file__).parent / Path('../models/custom_yolo/416_416_yolo_v4_tiny_openvino_2021.3_6shave.blob')).resolve().absolute())
 if 1 < len(sys.argv):
     arg = sys.argv[1]
     if arg == "yolo3":
@@ -64,7 +64,8 @@ xoutBoundingBoxDepthMapping.setStreamName("boundingBoxDepthMapping")
 xoutDepth.setStreamName("depth")
 
 # Properties
-camRgb.setPreviewSize(512, 320)
+camRgb.setPreviewSize(416, 416)
+#camRgb.setVideoSize(700, 700)
 camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
 camRgb.setInterleaved(False)
 camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
@@ -92,7 +93,7 @@ spatialDetectionNetwork.setDepthUpperThreshold(10000)
 spatialDetectionNetwork.setNumClasses(1)
 spatialDetectionNetwork.setCoordinateSize(4)
 spatialDetectionNetwork.setAnchors(np.array([10,14, 23,27, 37,58, 81,82, 135,169, 344,319]))
-spatialDetectionNetwork.setAnchorMasks({ "side32": np.array([1,2,3]), "side16": np.array([3,4,5]) })
+spatialDetectionNetwork.setAnchorMasks({ "side26": np.array([1,2,3]), "side13": np.array([3,4,5]) })
 spatialDetectionNetwork.setIouThreshold(0.5)
 
 # Linking
@@ -194,45 +195,6 @@ with dai.Device(pipeline) as device:
 #                 start = time.time()
 #             if len(positionList) == 101:
                 #print(time.time() - start)
-            # Upon having six recorded positions, start recording an initial and final point for determining approximate velocity
-            while len(positionList) > 1:
-                position1 = positionList[0]
-                position2 = positionList[1]
- 
-                # Removing oldest position to renew initial and final points as ball travels
-                positionList = []
-                
-            # Running avoidance algorithm with two positions, third argument is tolerance for avoidance in mm
-                dirMove, moveDist = DodgeWrench(position1, position2, 300, 1000, 30, 5)
-        
-                if dirMove != "Stay":
-                    #print(position1, position2)
-                    if dirMove == "Move Either Way":
-                            dirMove = "right"
-                    #print('Move', moveDist, 'mm to the', dirMove)
-                #else:
-                    #print(dirMove)
-                
-                # Moving the motor depending on the command result
-                if moveDist < 100:
-                    moveDist = 100
-                if (dirMove == "right"):
-                    #move.moveMotor("right",1000,200)
-                    move.accelerate("right",10,50,1000,moveDist)
-                    time.sleep(0.25)
-                    #move.moveMotor("left",1000,200)
-                    move.accelerate("left",10,50,1000,moveDist)
-                    time.sleep(0.25)
-
-                elif (dirMove == "left"):
-                    #move.moveMotor("left",1000,200)
-                    move.accelerate("left",10,50,1000,moveDist)
-                    time.sleep(0.25)
-                    #move.moveMotor("right",1000,200)
-                    move.accelerate("right",10,50,1000,moveDist)
-                    time.sleep(0.25)
-            
-            
             
             try:
                 label = labelMap[detection.label]
@@ -246,14 +208,53 @@ with dai.Device(pipeline) as device:
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, cv2.FONT_HERSHEY_SIMPLEX)
 
+        # Upon having six recorded positions, start recording an initial and final point for determining approximate velocity
+        while len(positionList) > 1:
+            position1 = positionList[0]
+            position2 = positionList[1]
+
+            # Removing oldest position to renew initial and final points as ball travels
+            positionList = []
+            
+        # Running avoidance algorithm with two positions, third argument is tolerance for avoidance in mm
+            dirMove, moveDist = DodgeWrench(position1, position2, 300, 1000, 20, 1)
+    
+            if dirMove != "Stay":
+                #print(position1, position2)
+                if dirMove == "Move Either Way":
+                        dirMove = "right"
+                #print('Move', moveDist, 'mm to the', dirMove)
+            #else:
+                #print(dirMove)
+            
+            # Moving the motor depending on the command result
+            if moveDist < 100:
+                moveDist = 100
+            if (dirMove == "right"):
+                #move.moveMotor("right",1000,200)
+                move.accelerate("right",10,50,1000,moveDist)
+                time.sleep(0.25)
+                #move.moveMotor("left",1000,200)
+                move.accelerate("left",10,50,1000,moveDist)
+                time.sleep(0.25)
+
+            elif (dirMove == "left"):
+                #move.moveMotor("left",1000,200)
+                move.accelerate("left",10,50,1000,moveDist)
+                time.sleep(0.25)
+                #move.moveMotor("right",1000,200)
+                move.accelerate("right",10,50,1000,moveDist)
+                time.sleep(0.25)
+        
+        
+        
         cv2.putText(frame, "NN fps: {:.2f}".format(fps), (2, frame.shape[0] - 4), cv2.FONT_HERSHEY_TRIPLEX, 0.4, color)
         fpscount +=1
         if fpscount == 30:
             print(fps)
             fpscount = 0
         #cv2.imshow("depth", depthFrameColor)
-        #cv2.imshow("rgb", frame)
+        cv2.imshow("rgb", frame)
 
-        #if cv2.waitKey(1) == ord('q'):
-            #break
-
+        if cv2.waitKey(1) == ord('q'):
+            break

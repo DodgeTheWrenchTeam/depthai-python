@@ -12,9 +12,8 @@ Spatial Tiny-yolo example
   Performs inference on RGB camera and retrieves spatial location coordinates: x,y,z relative to the center of depth map.
   Can be used for tiny-yolo-v3 or tiny-yolo-v4 networks
 '''
-
 # Get argument first
-nnBlobPath = str((Path(__file__).parent / Path('../models/yolo-v4-tiny-tf_openvino_2021.4_6shave.blob')).resolve().absolute())
+nnBlobPath = str((Path(__file__).parent / Path('../models/custom_yolo/100_100_yolo_v4_tiny_openvino_2021.3_6shave.blob')).resolve().absolute())
 if 1 < len(sys.argv):
     arg = sys.argv[1]
     if arg == "yolo3":
@@ -98,7 +97,7 @@ spatialDetectionNetwork.setDepthUpperThreshold(10000)
 spatialDetectionNetwork.setNumClasses(1)
 spatialDetectionNetwork.setCoordinateSize(4)
 spatialDetectionNetwork.setAnchors(np.array([10,14, 23,27, 37,58, 81,82, 135,169, 344,319]))
-spatialDetectionNetwork.setAnchorMasks({ "side26": np.array([1,2,3]), "side13": np.array([3,4,5]) })
+spatialDetectionNetwork.setAnchorMasks({ "side6": np.array([1,2,3]), "side3": np.array([3,4,5]) })
 spatialDetectionNetwork.setIouThreshold(0.5)
 
 # Linking
