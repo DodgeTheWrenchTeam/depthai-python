@@ -10,7 +10,17 @@ import argparse
 sys.path.append('../../../')
 from DodgeTheWrench.Avoidance import DodgeWrench
 from DodgeTheWrench.MoveMotor import MoveMotor
+import RPi.GPIO as GPIO
 
+# Set up LEDs
+greenLED = 27
+redLED = 17
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
+# Initialize GPIO pins
+GPIO.setup(greenLED, GPIO.OUT, initial=GPIO.LOW)
+GPIO.setup(redLED, GPIO.OUT, initial=GPIO.LOW)
 
 '''
 Spatial Tiny-yolo example
@@ -83,9 +93,9 @@ monoRight.setBoardSocket(dai.CameraBoardSocket.RIGHT)
 stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
 
 spatialDetectionNetwork.setBlobPath(nnBlobPath)
-spatialDetectionNetwork.setConfidenceThreshold(0.5)
+spatialDetectionNetwork.setConfidenceThreshold(0.7)
 spatialDetectionNetwork.input.setBlocking(False)
-spatialDetectionNetwork.setBoundingBoxScaleFactor(0.5)
+spatialDetectionNetwork.setBoundingBoxScaleFactor(0.1)
 spatialDetectionNetwork.setDepthLowerThreshold(100)
 spatialDetectionNetwork.setDepthUpperThreshold(10000)
 
@@ -173,6 +183,11 @@ with dai.Device(pipeline) as device:
         height = frame.shape[0]
         width  = frame.shape[1]
         
+        
+        GPIO.output(greenLED,GPIO.HIGH)
+        GPIO.output(redLED,GPIO.LOW)
+
+        
 
         for detection in detections:
             # Denormalize bounding box
@@ -190,6 +205,8 @@ with dai.Device(pipeline) as device:
                 continue
             
             # Increasing sample count for each tracked position
+            # Only append the current position if the ball is within 1500 cm
+            #if currentPosition[2] < 1500:
             positionList.append(currentPosition)
 #             if len(positionList) == 1:
 #                 start = time.time()
@@ -215,36 +232,47 @@ with dai.Device(pipeline) as device:
 
             # Removing oldest position to renew initial and final points as ball travels
             positionList = []
+            # Could also use pop here, need to test which is better
+            #positionList.pop(0)
             
         # Running avoidance algorithm with two positions, third argument is tolerance for avoidance in mm
-            dirMove, moveDist = DodgeWrench(position1, position2, 300, 1000, 20, 1)
-    
-            if dirMove != "Stay":
-                #print(position1, position2)
-                if dirMove == "Move Either Way":
-                        dirMove = "right"
-                #print('Move', moveDist, 'mm to the', dirMove)
-            #else:
-                #print(dirMove)
-            
-            # Moving the motor depending on the command result
-            if moveDist < 100:
-                moveDist = 100
-            if (dirMove == "right"):
-                #move.moveMotor("right",1000,200)
-                move.accelerate("right",10,50,1000,moveDist)
-                time.sleep(0.25)
-                #move.moveMotor("left",1000,200)
-                move.accelerate("left",10,50,1000,moveDist)
-                time.sleep(0.25)
+            if position2[2] < 1500:
+                dirMove, moveDist = DodgeWrench(position1, position2, 300, 1500, 20, 1)
+        
+                if dirMove != "Stay":
+                    #print(position1, position2)
+                    if dirMove == "Move Either Way":
+                            dirMove = "right"
+                    #print('Move', moveDist, 'mm to the', dirMove)
+                #else:
+                    #print(dirMove)
+                
+                # Moving the motor depending on the command result
+                if moveDist < 100:
+                    moveDist = 100
+                if (dirMove == "right"):
+                    #move.moveMotor("right",1000,200)
+                    move.accelerate("right",10,50,1000,moveDist)
+                    GPIO.output(greenLED,GPIO.LOW)
+                    GPIO.output(redLED,GPIO.HIGH)
 
-            elif (dirMove == "left"):
-                #move.moveMotor("left",1000,200)
-                move.accelerate("left",10,50,1000,moveDist)
-                time.sleep(0.25)
-                #move.moveMotor("right",1000,200)
-                move.accelerate("right",10,50,1000,moveDist)
-                time.sleep(0.25)
+                    time.sleep(1)
+                    #move.moveMotor("left",1000,200)
+                    move.accelerate("left",10,50,1000,moveDist)
+                    time.sleep(3)
+                    #GPIO.output(greenLED,GPIO.HIGH)
+
+                elif (dirMove == "left"):
+                    #move.moveMotor("left",1000,200)
+                    move.accelerate("left",10,50,1000,moveDist)
+                    GPIO.output(greenLED,GPIO.LOW)
+                    GPIO.output(redLED,GPIO.HIGH)
+                    time.sleep(1)
+                    #move.moveMotor("right",1000,200)
+                    move.accelerate("right",10,50,1000,moveDist)
+                    time.sleep(3)
+                    #GPIO.output(greenLED,GPIO.HIGH)
+                    #GPIO.output(redLED,GPIO.LOW)
         
         
         
