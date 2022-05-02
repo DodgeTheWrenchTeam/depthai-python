@@ -74,8 +74,10 @@ xoutBoundingBoxDepthMapping.setStreamName("boundingBoxDepthMapping")
 xoutDepth.setStreamName("depth")
 
 # Properties
-camRgb.setPreviewSize(416, 416)
-#camRgb.setVideoSize(700, 700)
+camRgb.setPreviewSize(416,416)
+vidx = int(416*1)
+vidy = int(416*1)
+#camRgb.setVideoSize(vidx, vidy)
 camRgb.setResolution(dai.ColorCameraProperties.SensorResolution.THE_1080_P)
 camRgb.setInterleaved(False)
 camRgb.setColorOrder(dai.ColorCameraProperties.ColorOrder.BGR)
@@ -236,7 +238,7 @@ with dai.Device(pipeline) as device:
             #positionList.pop(0)
             
         # Running avoidance algorithm with two positions, third argument is tolerance for avoidance in mm
-            if position2[2] < 1500:
+            if position2[2] < 2000:
                 dirMove, moveDist = DodgeWrench(position1, position2, 300, 1500, 20, 1)
         
                 if dirMove != "Stay":
@@ -248,29 +250,29 @@ with dai.Device(pipeline) as device:
                     #print(dirMove)
                 
                 # Moving the motor depending on the command result
-                if moveDist < 100:
-                    moveDist = 100
+                if moveDist < 150:
+                    moveDist = 150
                 if (dirMove == "right"):
                     #move.moveMotor("right",1000,200)
-                    move.accelerate("right",10,50,1000,moveDist)
+                    move.accelerate("right",10,40,900,moveDist)
                     GPIO.output(greenLED,GPIO.LOW)
                     GPIO.output(redLED,GPIO.HIGH)
 
                     time.sleep(1)
                     #move.moveMotor("left",1000,200)
-                    move.accelerate("left",10,50,1000,moveDist)
-                    time.sleep(3)
+                    move.accelerate("left",40,40,900,moveDist)
+                    time.sleep(1.5)
                     #GPIO.output(greenLED,GPIO.HIGH)
 
                 elif (dirMove == "left"):
                     #move.moveMotor("left",1000,200)
-                    move.accelerate("left",10,50,1000,moveDist)
+                    move.accelerate("left",10,40,900,moveDist)
                     GPIO.output(greenLED,GPIO.LOW)
                     GPIO.output(redLED,GPIO.HIGH)
                     time.sleep(1)
                     #move.moveMotor("right",1000,200)
-                    move.accelerate("right",10,50,1000,moveDist)
-                    time.sleep(3)
+                    move.accelerate("right",40,40,900,moveDist)
+                    time.sleep(1.5)
                     #GPIO.output(greenLED,GPIO.HIGH)
                     #GPIO.output(redLED,GPIO.LOW)
         
